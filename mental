@@ -1,3 +1,4 @@
+```sql
 CREATE TABLE tech_mental_health (
 
     id INTEGER PRIMARY KEY,
