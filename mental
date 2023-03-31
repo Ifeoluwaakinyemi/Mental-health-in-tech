@@ -1,0 +1,210 @@
+CREATE TABLE tech_mental_health (
+
+    id INTEGER PRIMARY KEY,
+
+    company_name TEXT,
+
+    employee_count INTEGER,
+
+    has_mental_health_program BOOLEAN,
+
+    program_type TEXT,
+
+    program_coverage TEXT,
+
+    program_effectiveness TEXT,
+
+    stigma_reduction_efforts TEXT,
+
+    accommodation_efforts TEXT,
+
+    employee_feedback TEXT
+
+);
+
+INSERT INTO tech_mental_health (id, company_name, employee_count, has_mental_health_program, program_type, program_coverage, program_effectiveness, stigma_reduction_efforts, accommodation_efforts, employee_feedback) VALUES
+
+(1, 'Google', 139995, true, 'EAP', 'All employees', 'Positive feedback from employees', 'Mental health training for managers', 'Flexible work arrangements', 'Most employees find the program helpful'),
+
+(2, 'Microsoft', 181000, true, 'Counseling services', 'All employees', 'Usage metrics show high engagement', 'Awareness campaigns', 'Accommodations for therapy sessions', 'Employee satisfaction surveys show high approval rating'),
+
+(3, 'Apple', 137000, false, null, null, null, null, null, null),
+
+(4, 'Amazon', 798000, true, 'EAP', 'All employees', 'High usage rates and positive feedback', 'Mental health awareness events', 'Flexible work arrangements', 'Some employees have reported issues with access to services'),
+
+(5, 'Facebook', 63165, true, 'Counseling services', 'All employees', 'Positive feedback from employees', 'Mental health training for managers', 'Flexible work arrangements', 'Most employees find the program helpful'),
+
+(6, 'Intel', 110800, true, 'EAP', 'All employees', 'Usage metrics show high engagement', 'Mental health awareness campaigns', 'Flexible work arrangements', 'Employee satisfaction surveys show high approval rating'),
+
+(7, 'IBM', 352600, true, 'Counseling services', 'All employees', 'Positive feedback from employees', 'Mental health training for managers', 'Accommodations for therapy sessions', 'Most employees find the program helpful'),
+
+(8, 'Dell', 165000, false, null, null, null, null, null, null),
+
+(9, 'Cisco', 79000, true, 'EAP', 'All employees', 'Usage metrics show high engagement', 'Mental health awareness campaigns', 'Flexible work arrangements', 'Employee satisfaction surveys show high approval rating'),
+
+(10, 'Oracle', 138000, true, 'Counseling services', 'All employees', 'Positive feedback from employees', 'Mental health training for managers', 'Accommodations for therapy sessions', 'Most employees find the program helpful');
+
+
+
+--1. What percentage of tech companies in the table have mental health programs?
+
+SELECT COUNT(*) * 100.0 / (SELECT COUNT(*) FROM tech_mental_health) AS percentage_with_program
+FROM tech_mental_health
+WHERE has_mental_health_program = true;
+
+
+
+--2. Which company has the largest number of employees?
+
+SELECT company_name, employee_count
+FROM tech_mental_health
+ORDER BY employee_count DESC
+LIMIT 1;
+
+
+
+--3. Which mental health program type is the most common?
+
+SELECT program_type, COUNT(*) AS count
+FROM tech_mental_health
+WHERE has_mental_health_program = true
+GROUP BY program_type
+ORDER BY count DESC
+LIMIT 1;
+
+
+
+--4. How many companies in the table have stigma reduction efforts as part of their mental health programs?
+
+SELECT COUNT(*) AS count
+FROM tech_mental_health
+WHERE stigma_reduction_efforts IS NOT NULL;
+
+
+
+--5. Which companies have the highest overall satisfaction with their mental health programs (based on employee feedback), and how does this compare to their industry average?
+
+SELECT a.company_name, a.employee_feedback, b.avg_feedback
+FROM (
+  SELECT company_name, employee_feedback
+  FROM tech_mental_health
+  WHERE has_mental_health_program = true
+) a
+JOIN (
+  SELECT AVG(employee_feedback) AS avg_feedback, industry
+  FROM (
+    SELECT employee_feedback, 
+      CASE
+        WHEN employee_count <= 1000 THEN 'Small'
+        WHEN employee_count <= 10000 THEN 'Medium'
+        ELSE 'Large'
+      END AS industry
+    FROM tech_mental_health
+    WHERE has_mental_health_program = true
+  ) c
+  GROUP BY industry
+) b ON (
+  CASE
+    WHEN a.employee_count <= 1000 THEN 'Small'
+    WHEN a.employee_count <= 10000 THEN 'Medium'
+    ELSE 'Large'
+  END = b.industry
+)
+ORDER BY a.employee_feedback DESC
+LIMIT 10;
+
+This query first selects the companies with mental health programs and their corresponding employee feedback scores. It then joins this result with a subquery
+that calculates the average employee feedback score by industry (defined by company size), and compares the company's feedback score to the industry average. 
+The result is ordered by employee feedback in descending order, and limited to the top 10 companies.
+
+
+
+--6. Which mental health program types are most commonly offered together, and which companies offer them?
+
+SELECT a.program_type AS program_type_1, b.program_type AS program_type_2, COUNT(*) AS count, GROUP_CONCAT(c.company_name ORDER BY c.company_name ASC SEPARATOR ', ') AS companies
+FROM (
+  SELECT program_type, company_name
+  FROM tech_mental_health
+  WHERE has_mental_health_program = true
+) a
+JOIN (
+  SELECT program_type, company_name
+  FROM tech_mental_health
+  WHERE has_mental_health_program = true
+) b ON a.company_name = b.company_name AND a.program_type < b.program_type
+JOIN tech_mental_health c ON a.company_name = c.company_name
+GROUP BY a.program_type, b.program_type
+ORDER BY count DESC;
+
+This query first selects the program types and companies that offer mental health programs. It then joins this result with itself (aliased as a and b) 
+on the company name, but only where the second program type comes after the first alphabetically (to prevent duplicate combinations). Finally, it joins with
+the original tech_mental_healthtable (aliased as c) to include the company name in the result. The result is grouped by program type combination and ordered by count
+of companies offering that combination, with a comma-separated list of companies.
+
+
+
+--7. Which mental health programs are the most effective in reducing stigma, and what is their employee feedback compared to those that do not have stigma reduction efforts?
+
+WITH stigma_reducers AS (
+  SELECT company_name, program_type, program_effectiveness, employee_feedback
+  FROM tech_mental_health
+WHERE has_mental_health_program = true
+ AND stigma_reduction_efforts IS NOT NULL
+),
+non_stigma_reducers AS (
+SELECT company_name, program_type, program_effectiveness, employee_feedback
+ FROM tech_mental_health
+ WHERE has_mental_health_program = true
+ AND stigma_reduction_efforts IS NULL
+)
+SELECT stigma_reducers.program_type, 
+AVG(stigma_reducers.employee_feedback) AS avg_feedback_with_stigma_reducers, 
+ AVG(non_stigma_reducers.employee_feedback) AS avg_feedback_without_stigma_reducers
+FROM stigma_reducers
+LEFT JOIN non_stigma_reducers 
+ON stigma_reducers.company_name = non_stigma_reducers.company_name 
+ AND stigma_reducers.program_type = non_stigma_reducers.program_type
+GROUP BY stigma_reducers.program_type
+ORDER BY AVG(stigma_reducers.employee_feedback) DESC;
+
+I used a Common Table Expressions (CTEs) to separate mental health programs into those that have stigma reduction efforts and those that do not. i then used joins to
+join two CTEs on company name and program type, and calculates the average employee feedback score for each group. The result is grouped by program type and ordered
+by the average feedback score of programs that have stigma reduction efforts in descending order.
+
+
+
+--8. Which mental health programs are the most effective in accommodating employees with mental health conditions, and what is their employee feedback compared to those that do not have accommodation efforts?
+
+WITH accommodation_effort_providers AS (
+ SELECT company_name, program_type, program_effectiveness, employee_feedback
+FROM tech_mental_health
+WHERE has_mental_health_program = true
+AND accommodation_efforts IS NOT NULL
+),
+non_accommodation_effort_providers AS (
+ SELECT company_name, program_type, program_effectiveness, employee_feedback
+ FROM tech_mental_health
+WHERE has_mental_health_program = true
+ AND accommodation_efforts IS NULL
+),
+highest_accommodation_effectiveness AS (
+ SELECT program_type, MAX(program_effectiveness) AS max_effectiveness
+FROM accommodation_effort_providers
+ GROUP BY program_type
+)
+ SELECT a.program_type, a.program_effectiveness, 
+ AVG(a.employee_feedback) AS avg_feedback_with_accommodation_efforts, 
+ AVG(b.employee_feedback) AS avg_feedback_without_accommodation_efforts
+FROM accommodation_effort_providers a
+ LEFT JOIN non_accommodation_effort_providers b 
+ON a.company_name = b.company_name 
+AND a.program_type = b.program_type
+ JOIN highest_accommodation_effectiveness c 
+ON a.program_type = c.program_type AND a.program_effectiveness = c.max_effectiveness
+GROUP BY a.program_type, a.program_effectiveness
+ORDER BY AVG(a.employee_feedback) DESC;
+
+In this query i also used CTEs to separate mental health programs into those that have accommodation efforts and those that do not. I then joined the two CTEs on
+company name and program type, and calculates the average employee feedback score for each group. Additionally, it creates a subquery (aliased as highest_accommodation_effectiveness) 
+that calculates the highest program effectiveness score for each program type that has accommodation efforts. The final result only includes programs with the highest effectiveness score for each program type, and is ordered by the average feedback score of programs with accommodation efforts in descending order.
+that offer that combination.
